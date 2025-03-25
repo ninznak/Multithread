@@ -3,20 +3,23 @@ package ru.alex;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.*;
 
 public class Main {
 
-    public static void main(String[] args) throws InterruptedException {
+    public static void main(String[] args) throws InterruptedException, ExecutionException {
+        int SPARE_THREADS = 2;
         String[] texts = new String[25];
         for (int i = 0; i < texts.length; i++) {
             texts[i] = generateText("aab", 30_000);
         }
 
-        List<Thread> threads = new ArrayList<>();
+        ExecutorService executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors()-SPARE_THREADS);
+        List<Future<Integer>> futures = new ArrayList<>();
 
         long startTs = System.currentTimeMillis(); // start time
         for (String text : texts) {
-            Thread thread = new Thread(() -> {
+            Callable<Integer> task = () -> {
                 int maxSize = 0;
                 for (int i = 0; i < text.length(); i++) {
                     for (int j = 0; j < text.length(); j++) {
@@ -36,17 +39,24 @@ public class Main {
                     }
                 }
                 System.out.println(text.substring(0, 100) + " -> " + maxSize);
-            });
-            threads.add(thread);
-            thread.start();
+                return maxSize;
+            };
+            futures.add(executor.submit(task));
         }
 
-        for (Thread thread : threads) {
-            thread.join();
+        int searchMax = 0;
+        for (Future<Integer> future : futures) {
+            int currentMax = future.get();
+            if (currentMax > searchMax) {
+                searchMax = currentMax;
+            }
         }
+
+        executor.shutdown();
 
         long endTs = System.currentTimeMillis(); // end time
 
+        System.out.println("Искомый максимум = " + searchMax + "\n");
         System.out.println("Time: " + (endTs - startTs) + "ms");
     }
 
